@@ -22,10 +22,10 @@ UKF::UKF() {
   use_radar_ = false;
 
   // Process noise standard deviation longitudinal acceleration in m/s^2
-  std_a_ = 1;
+  std_a_ = 0.8;
 
   // Process noise standard deviation yaw acceleration in rad/s^2
-  std_yawdd_ = 0.01;
+  std_yawdd_ = 0.6;
 
   // Laser measurement noise standard deviation position1 in m
   std_laspx_ = 0.15;
@@ -78,17 +78,14 @@ UKF::UKF() {
 
 UKF::~UKF() {}
 
-/**
- * @param {MeasurementPackage} meas_package The latest measurement data of
- * either radar or laser.
- */
+
 void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
   /**
-  Initialize the first measurement, predict and update
+  Initialize x_ and P_ with the first measurement, predict and update
   */
-  // Initialize the first data
+  // Initialize x_ and P_
   if (!is_initialized_) {// then it's the first measurement
-    // set time stamp
+    // get time stamp
     time_us_ = meas_package.timestamp_;
 
     // initialize state vector
@@ -107,19 +104,19 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
     // initialize state covariance matrix
     P_ << 1, 0, 0, 0, 0,
           0, 1, 0, 0, 0,
-          0, 0, 1000, 0, 0,
-          0, 0, 0, 10, 0,
-          0, 0, 0, 0, 10;
-
+          0, 0, 100, 0, 0,
+          0, 0, 0, 100, 0,
+          0, 0, 0, 0, 100;
     // done initializing, set is_initialized
     is_initialized_ = true;
   }
 
-  // Calculate delta_t
-  double delta_t = (meas_package.timestamp_ - time_us_) / 1000000.0;
+  // Calculate delta_t and update time stamp
+  double dt = (meas_package.timestamp_ - time_us_) / 1000000.0;
+  time_us_ = meas_package.timestamp_;
 
   // Predict
-  Prediction(delta_t);
+  Prediction(dt);
 
   // Update
   if ((meas_package.sensor_type_ == MeasurementPackage::LASER) & (use_laser_)) {
@@ -130,11 +127,6 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
   }
 }
 
-/**
- * Predicts sigma points, the state, and the state covariance matrix.
- * @param {double} delta_t the change in time (in seconds) between the last
- * measurement and this one.
- */
 void UKF::Prediction(double delta_t) {
   /**
   Estimate the object's location. Modify the state vector, x_. Predict sigma
@@ -162,7 +154,7 @@ void UKF::Prediction(double delta_t) {
   P_aug.fill(0.0);
   P_aug.topLeftCorner(n_x_, n_x_) = P_;
   P_aug(n_x_,n_x_) = std_a_ * std_a_;
-  P_aug(n_x_ + 1,n_x_ + 1) = std_yawdd_ * std_yawdd_;
+  P_aug(n_x_ + 1, n_x_ + 1) = std_yawdd_ * std_yawdd_;
 
   MatrixXd sqrtMatrix = P_aug.llt().matrixL();
   Xsig_aug.col(0) = x_aug;
@@ -196,7 +188,7 @@ void UKF::Prediction(double delta_t) {
     d_term(4) =0;
 
     // Calculate the stachastic term s_term
-    VectorXd s_term = VectorXd(5);
+    VectorXd s_term = VectorXd(n_x_);
     s_term(0) = 0.5 * delta_t * delta_t * cos(x(3)) * x(5);
     s_term(1) = 0.5 * delta_t * delta_t * sin(x(3)) * x(5);
     s_term(2) = delta_t * x(5);
@@ -204,7 +196,13 @@ void UKF::Prediction(double delta_t) {
     s_term(4) = delta_t * x(6);
 
     // Add three terms together
-    Xsig_pred_.col(i) = x_k + d_term + s_term;
+    VectorXd x_k1 = x_k + d_term + s_term;
+
+    // Keep yaw angle within -pi to pi
+    while (x_k1(3)> M_PI) x_k1(3)-=2.*M_PI;
+    while (x_k1(3)<-M_PI) x_k1(3)+=2.*M_PI;
+
+    Xsig_pred_.col(i) = x_k1;
   }
 
   // Predict state vector
@@ -298,10 +296,7 @@ void UKF::UpdateLidar(MeasurementPackage meas_package) {
 
 }
 
-/**
- * Updates the state and the state covariance matrix using a radar measurement.
- * @param {MeasurementPackage} meas_package
- */
+
 void UKF::UpdateRadar(MeasurementPackage meas_package) {
   /**
   Use radar data to update the belief about the object's position;
