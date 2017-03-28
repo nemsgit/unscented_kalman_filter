@@ -128,9 +128,11 @@ int main(int argc, char* argv[]) {
       gt_package.gt_values_ << x_gt, y_gt, vx_gt, vy_gt;
       gt_pack_list.push_back(gt_package);
   }
+  cout << "data loaded" << endl;
 
   // Create a UKF instance
   UKF ukf;
+  cout << "UKF object created" << endl;
 
   // used to compute the RMSE later
   vector<VectorXd> estimations;
@@ -155,7 +157,7 @@ int main(int argc, char* argv[]) {
   out_file_ << "vy_true" << "\t";
   out_file_ << "NIS" << "\n";
 
-
+  cout << "Headers printed in out_file" << endl;
   for (size_t k = 0; k < number_of_measurements; ++k) {
     // Call the UKF-based fusion
     ukf.ProcessMeasurement(measurement_pack_list[k]);
@@ -166,6 +168,13 @@ int main(int argc, char* argv[]) {
     out_file_ << ukf.x_(2) << "\t"; // vel_abs -est
     out_file_ << ukf.x_(3) << "\t"; // yaw_angle -est
     out_file_ << ukf.x_(4) << "\t"; // yaw_rate -est
+
+    cout << "k/N = " << k << "/" << number_of_measurements << "\t";
+    cout << ukf.x_(0) << "\t"; // pos1 - est
+    cout << ukf.x_(1) << "\t"; // pos2 - est
+    cout << ukf.x_(2) << "\t"; // vel_abs -est
+    cout << ukf.x_(3) << "\t"; // yaw_angle -est
+    cout << ukf.x_(4) << "\n"; // yaw_rate -est
 
     // output the measurements
     if (measurement_pack_list[k].sensor_type_ == MeasurementPackage::LASER) {
@@ -213,6 +222,7 @@ int main(int argc, char* argv[]) {
     ground_truth.push_back(gt_pack_list[k].gt_values_);
 
   }
+  cout << "data exported to out_file" << endl;
 
   // compute the accuracy (RMSE)
   Tools tools;
