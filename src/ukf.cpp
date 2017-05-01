@@ -19,13 +19,13 @@ UKF::UKF() {
   use_laser_ = true;
 
   // if this is false, radar measurements will be ignored (except during init)
-  use_radar_ = false;
+  use_radar_ = true;
 
   // Process noise standard deviation longitudinal acceleration in m/s^2
-  std_a_ = 0.8;
+  std_a_ = 0.5;
 
   // Process noise standard deviation yaw acceleration in rad/s^2
-  std_yawdd_ = 0.6;
+  std_yawdd_ = 0.5;
 
   // Laser measurement noise standard deviation position1 in m
   std_laspx_ = 0.15;
@@ -95,18 +95,18 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
       double phi = meas_package.raw_measurements_[1];
       double rho_dot = meas_package.raw_measurements_[2];
 
-      x_ << rho * cos(phi), rho * sin(phi), rho_dot, 0.05, 0.05; // v approximated as rho_dot
+      x_ << rho * cos(phi), rho * sin(phi), 0, 0, 0; // v is approximated as rho_dot
     }
     else { // Laser measurement
-      x_ << meas_package.raw_measurements_[0], meas_package.raw_measurements_[1], 0, 0.05, 0.05;
+      x_ << meas_package.raw_measurements_[0], meas_package.raw_measurements_[1], 0, 0, 0;
     }
 
     // initialize state covariance matrix
-    P_ << 1, 0, 0, 0, 0,
-          0, 1, 0, 0, 0,
-          0, 0, 100, 0, 0,
-          0, 0, 0, 100, 0,
-          0, 0, 0, 0, 100;
+    P_ << 0.1, 0, 0, 0, 0,
+          0, 0.1, 0, 0, 0,
+          0, 0, 0.1, 0, 0,
+          0, 0, 0, 1, 0,
+          0, 0, 0, 0, 0.1;
     // done initializing, set is_initialized
     is_initialized_ = true;
   }
@@ -229,10 +229,6 @@ void UKF::Prediction(double delta_t) {
   P_ = P;
 }
 
-/**
- * Updates the state and the state covariance matrix using a laser measurement.
- * @param {MeasurementPackage} meas_package
- */
 void UKF::UpdateLidar(MeasurementPackage meas_package) {
   /**
   Use lidar data to update the belief about the object's position;
@@ -296,7 +292,6 @@ void UKF::UpdateLidar(MeasurementPackage meas_package) {
 
 }
 
-
 void UKF::UpdateRadar(MeasurementPackage meas_package) {
   /**
   Use radar data to update the belief about the object's position;
@@ -318,7 +313,8 @@ void UKF::UpdateRadar(MeasurementPackage meas_package) {
 
     Zsig(0, i) = sqrt(p_x * p_x + p_y * p_y); //rho
     Zsig(1, i) = atan2(p_y, p_x);             //phi
-    Zsig(2, i) = (p_x * cos(yaw) + p_y * sin(yaw)) * v / Zsig(0, i); //rho_dot
+    if (Zsig(0, i) < 0.001) Zsig(2, i) = 0;
+    else Zsig(2, i) = (p_x * cos(yaw) + p_y * sin(yaw)) * v / Zsig(0, i); //rho_dot
   }
 
   // Predict measurement mean
